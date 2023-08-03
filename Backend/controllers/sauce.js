@@ -74,8 +74,8 @@ exports.likeSauce = (req, res, next) => {
           .catch((error) => res.status(500).json({ error: error.message }));
       })
       .catch((error) => res.status(500).json({ error: error.message }));
-  };
-  if (req.body.like === 0) {
+  }
+  else if (req.body.like === 0) {
     Sauce.findOne({ _id: req.params.id })
       .then((sauce) => {
         if (!sauce) {
@@ -91,7 +91,7 @@ exports.likeSauce = (req, res, next) => {
             .then(() => res.status(200).json({ message: "Like retiré pour cette sauce" }))
             .catch((error) => res.status(500).json({ error: error.message }));
         } 
-
+        
         const deudex = sauce.usersDisliked.indexOf(req.auth.userId);
       if (deudex !== -1) {
         // Si l'utilisateur avait déjà disliké cette sauce, on l'enlève de la liste des dislikes
@@ -106,7 +106,7 @@ exports.likeSauce = (req, res, next) => {
       .catch((error) => res.status(500).json({ error: error.message }));
     
   }
-  if (req.body.like === -1) {
+  else if (req.body.like === -1) {
     Sauce.findOne({ _id: req.params.id })
       .then((sauce) => {
         if (!sauce) {
@@ -130,7 +130,10 @@ exports.likeSauce = (req, res, next) => {
           .catch((error) => res.status(500).json({ error: error.message }));
       })
       .catch((error) => res.status(500).json({ error: error.message }));
-  };
+  }
+  else {
+    res.status(400).json({ message: "La valeur du like doit être soit 1, 0 ou -1" });
+  }
 }
 
 /* exports.dislikeSauce = (req, res, next) => {
