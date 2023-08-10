@@ -1,4 +1,6 @@
+const { error } = require('console');
 const Sauce = require('../models/Sauce')
+const fs = require('fs');
 
 exports.createSauce = (req, res, next) => {
   const sauceObject = JSON.parse(req.body.sauce);
@@ -38,15 +40,76 @@ exports.getAllSauces = (req, res, next) => {
 }
 
 exports.updateOne = (req, res, next) => {
-  Sauce.updateOne({ _id: req.params.id }, { ...req.body, _id: req.params.id })
+  Sauce.findOne({ _id: req.params.id })
+    .then(sauce => {
+      if (!sauce) {
+        return res.status(404).json({ message: "Sauce introuvable" });
+      }
+      if (sauce.userId !== req.auth.userId) {
+        return res.status(401).json({ message: "Vous n'avez pas l'autorisation de modifier cette sauce" });
+      }
+
+      if (req.file) {
+        const filename = sauce.imageUrl.split('/images/')[1];
+        fs.unlink(`images/${filename}`, () => {
+          // Met à jour le chemin de l'image dans les données de la sauce
+          req.body.imageUrl = `${req.protocol}://${req.get('host')}/images/${req.file.filename}`;
+          
+          // Continue la mise à jour de la sauce
+          updateSauce(req, res, sauce);
+        });
+      } else {
+        // Pas de nouvelle image, continue la mise à jour de la sauce
+        updateSauce(req, res, sauce);
+      }
+    })
+    .catch(error => {
+      res.status(500).json({ error });
+    });
+};
+
+function updateSauce(req, res, sauce) {
+  const updatedFields = { ...req.body };
+  delete updatedFields._id;
+
+  Sauce.updateOne({ _id: req.params.id }, { $set: updatedFields })
     .then(() => res.status(200).json({ message: 'Sauce modifiée !' }))
-    .catch(error => res.status(400).json({ error }))
+    .catch(updateError => res.status(400).json({ error: updateError.message }));
 }
+/*exports.updateOne = (req, res, next) => {
+  Sauce.findOne({ _id: req.params.id })
+    .then(sauce => {
+      if (!sauce) {
+        return res.status(404).json({ message: "Sauce introuvable" });
+      }
+      if (sauce.userId !== req.user.userId) {
+        return res.status(401).json({ message: "Vous n'avez pas l'autorisation de modifier cette sauce" });
+      }
+
+      Sauce.updateOne({ _id: req.params.id }, {...req.body, _id: req.params.id })
+        .then(() => res.status(200).json({ message: 'Sauce modifiée !' }))
+        .catch(updateError => res.status(400).json({ error}));
+    })
+    .catch(error => res.status(500).json({ error}));
+};*/
 
 exports.deleteOne = (req, res, next) => {
-  Sauce.deleteOne({ _id: req.params.id })
-    .then(() => res.status(200).json({ message: 'Sauce supprimée !' }))
-    .catch(error => res.status(400).json({ error }));
+  Sauce.findOne({ _id: req.params.id})
+      .then(sauce => {
+          if (sauce.userId != req.auth.userId) {
+              res.status(401).json({message: 'Not authorized'});
+          } else {
+              const filename = sauce.imageUrl.split('/images/')[1];
+              fs.unlink(`images/${filename}`, () => {
+                  Sauce.deleteOne({_id: req.params.id})
+                      .then(() => { res.status(200).json({message: 'Objet supprimé !'})})
+                      .catch(error => res.status(401).json({ error }));
+              });
+          }
+      })
+      .catch( error => {
+          res.status(500).json({ error });
+      });
 };
 
 exports.likeSauce = (req, res, next) => {
@@ -89,7 +152,7 @@ exports.likeSauce = (req, res, next) => {
           sauce.likes = sauce.likes - 1;
           sauce.save()
             .then(() => res.status(200).json({ message: "Like retiré pour cette sauce" }))
-            .catch((error) => res.status(500).json({ error: error.message }));
+            .catch((error) => res.status(500).json({ error: "error" }));
         } 
         
         const deudex = sauce.usersDisliked.indexOf(req.auth.userId);
@@ -101,7 +164,9 @@ exports.likeSauce = (req, res, next) => {
           .then(() => res.status(200).json({ message: "Dislike retiré pour cette sauce" }))
           .catch((error) => res.status(500).json({ error: error.message }));
       } 
-
+      // else {
+      //  res.status(400).json({ message: "Aucune sauce likée ni dislikée"})
+      // }
       })
       .catch((error) => res.status(500).json({ error: error.message }));
     
